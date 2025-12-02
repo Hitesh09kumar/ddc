@@ -1,4 +1,9 @@
-# Morse code dictionary
+# ddc_timekey_singleline.py
+# Input prompt: "Enter Message:"
+# Output single line: your msg: <DDC>~<DDMMYY> <HHMM>
+
+from datetime import datetime
+
 morse_code_dict = {
     'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
     'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..',
@@ -7,58 +12,64 @@ morse_code_dict = {
     'Y': '-.--', 'Z': '--..',
     '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
     '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
-    ' ': '/'  # Space between words in Morse code is represented by '/'
+    ' ': '/'
 }
 
-def generate_key(text, key):
-    key = list(key)
-    if len(text) == len(key):
-        return key
-    else:
-        for i in range(len(text) - len(key)):
-            key.append(key[i % len(key)])
-    return "".join(key)
+def num_to_letter_mod26(n: int) -> str:
+    v = n % 26
+    return 'Z' if v == 0 else chr(ord('A') + v - 1)
+
+def derive_key_from_now():
+    dt = datetime.now()
+    dd, mm, yy = dt.day, dt.month, dt.year % 100
+    hh, minute = dt.hour, dt.minute
+    sum_date = sum(int(ch) for ch in f"{dd:02d}{mm:02d}{yy:02d}")
+    letters = [
+        num_to_letter_mod26(sum_date),
+        num_to_letter_mod26(mm),
+        num_to_letter_mod26(dd),
+        num_to_letter_mod26(hh),
+        num_to_letter_mod26(minute),
+    ]
+    ts_ddmmyy = dt.strftime("%d%m%y")
+    ts_hhmm = dt.strftime("%H%M")
+    return "".join(letters), ts_ddmmyy, ts_hhmm
+
+def expand_key_for_alpha(text, key):
+    alpha_count = sum(c.isalpha() for c in text)
+    if alpha_count == 0:
+        return ""
+    out = list(key)
+    while len(out) < alpha_count:
+        out.append(key[len(out) % len(key)])
+    return "".join(out)
 
 def vigenere_encrypt(text, key):
-    encrypted_text = []
-    key = generate_key(text, key)
-    key_index = 0
-    for char in text:
-        if char.isalpha():
-            # Encrypt the character
-            x = (ord(char.upper()) + ord(key[key_index].upper())) % 26
-            x += ord('A')
-            encrypted_text.append(chr(x))
-            key_index += 1
+    enc, k = [], expand_key_for_alpha(text, key)
+    i = 0
+    for ch in text:
+        if ch.isalpha():
+            p = ord(ch.upper()) - ord('A')
+            s = ord(k[i].upper()) - ord('A')
+            enc.append(chr(ord('A') + (p + s) % 26))
+            i += 1
         else:
-            # Preserve non-alphabet characters
-            encrypted_text.append(char)
-    return "".join(encrypted_text)
+            enc.append(ch)
+    return "".join(enc)
 
 def text_to_morse(text):
-    # Replace each letter in text with its Morse code equivalent
-    morse_code = ' '.join(morse_code_dict.get(char.upper(), '') for char in text)
-    return morse_code
+    return ' '.join(morse_code_dict.get(ch.upper(), '') for ch in text)
 
-def convert_morse_to_binary(morse_code):
-    # Replace '.' with '1' and '-' with '0'
-    binary_code = morse_code.replace('.', '1').replace('-', '0')
-    return binary_code
+def morse_to_ddc(morse):
+    return morse.replace('.', '1').replace('-', '0')
 
-# Input text and key
-text = input("Encryption: ")
-key = input("Key: ")
+def main():
+    plaintext = input("Enter Message: ")
+    key5, ts_ddmmyy, ts_hhmm = derive_key_from_now()
+    v_encrypted = vigenere_encrypt(plaintext, key5)
+    morse = text_to_morse(v_encrypted)
+    ddc = morse_to_ddc(morse)
+    print(f"your msg: {ddc}~{ts_ddmmyy} {ts_hhmm}")
 
-# Encrypt the text using Vigenère cipher
-encrypted_text = vigenere_encrypt(text, key)
-print(f'Vigenère Encrypted Text: {encrypted_text}')
-
-# Convert the encrypted text to Morse code
-morse_code = text_to_morse(encrypted_text)
-print(f'Morse Code: {morse_code}')
-
-# Convert the Morse code to binary
-binary_code = convert_morse_to_binary(morse_code)
-print(f'DDC: {binary_code}')
-
-input("press enter: ")
+if __name__ == "__main__":
+    main()
